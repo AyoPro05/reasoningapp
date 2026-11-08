@@ -41,10 +41,10 @@ Public identifiers are opaque strings. `CategoryId` is the five category literal
 
 **Interfaces:** `readConfig(env): AppConfig` validates DB/Redis/auth URLs, origins, auth secret and environment. `AI_ASSISTANCE_ENABLED` is false; true is rejected until a provider rollout exists. Runtime schemas include `CreateSessionInput`, `CommitAnswerInput`, `SessionDto`, `FeedbackDto`, `ProgressDto` and `ApiErrorDto`.
 
-- [ ] Check official Node, Expo, Next.js, Prisma and Fastify requirements; choose a compatible supported Node LTS rather than assuming the installed Node 26 is appropriate. Pin dependencies; configure scripts `test`, `typecheck`, `build`, `test:integration`, `test:e2e`, `db:migrate`, `db:seed`.
-- [ ] Write configuration tests that reject production fixture/verification bypasses, missing secrets and unexpected origins. Run the tests and observe the missing implementation failure.
-- [ ] Implement environment schemas and public DTOs. Create all approved workspace packages, local PostgreSQL/Redis/Mailpit services, and CI using isolated test databases with fake email only.
-- [ ] Run `pnpm test tests/unit/config.test.ts`, `pnpm typecheck` and `docker compose -f infra/compose.yaml config`; expect passing tests, zero type errors and valid Compose. Commit the verified foundation.
+- [x] Check official Node, Expo, Next.js, Prisma and Fastify requirements; choose a compatible supported Node LTS rather than assuming the installed Node 26 is appropriate. Pin dependencies; configure scripts `test`, `typecheck`, `build`, `test:integration`, `test:e2e`, `db:migrate`, `db:seed`.
+- [x] Write configuration tests that reject production fixture/verification bypasses, missing secrets and unexpected origins. Run the tests and observe the missing implementation failure.
+- [x] Implement environment schemas and public DTOs. Create all approved workspace packages, local PostgreSQL/Redis/Mailpit services, and CI using isolated test databases with fake email only.
+- [x] Run `pnpm test tests/unit/config.test.ts`, `pnpm typecheck` and `docker compose -f infra/compose.yaml config`; expect passing tests, zero type errors and valid Compose. Commit the verified foundation.
 
 ## Task 2: Persistent schema and original development content
 
@@ -136,3 +136,4 @@ Exact framework pins are intentionally selected in Task 1 after checking compati
 ## Execution handoff
 
 Recommend subagent-driven execution: independent implementation/review gates for each task before final whole-branch review. Native execution remains an option. Founder chooses the method and confirms this implementation plan before code execution, as required by the writing-plans workflow.
+
