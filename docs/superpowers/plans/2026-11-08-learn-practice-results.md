@@ -52,10 +52,10 @@ Public identifiers are opaque strings. `CategoryId` is the five category literal
 
 **Interfaces:** `scoreOption(questionVersion, optionKey): {correct:boolean}` accepts only an option belonging to the immutable version; unknown options throw. `validateQuestion(input): ValidationIssue[]` verifies options, key, explanation, provenance, assumptions and three ordered hint stages. Database exports one Prisma client factory. Content state includes explicit development fixtures separately from publishable records.
 
-- [ ] Write failing tests for exactly 10 fixtures/category, option-key membership, unique versions, verbal Cannot Say, explicit numerical units/rounding, mechanical assumptions, full sequence rules, logical skill boundaries and empty/disclosing hints. Structural detection of hint leakage is advisory; document human review requirements.
-- [ ] Implement the complete V3 logical schema and Better Auth-required account/verification/session relations, mapping AuthSession deliberately. Include approved hint/explanation versions, assistance events and audit/report models. Add the specified unique constraints and foreign keys plus a PostgreSQL partial unique index for one active session/user. Define row-locking strategy and idempotency storage for Task 4.
-- [ ] Author all 50 original fixtures plus five lessons/worked examples. Fixtures use explicit provenance and never fabricated reviewer metadata. Seed only in development/test. Preserve immutable published content through protected write services and tests.
-- [ ] Generate and apply the migration to a disposable real PostgreSQL database; validate relations, uniqueness, active-session constraint and fixture production rejection. Run `pnpm test tests/content`, `pnpm test:integration -- database`, and Prisma validation; expect all passing. Document rollback limitations and commit.
+- [x] Write failing tests for exactly 10 fixtures/category, option-key membership, unique versions, verbal Cannot Say, explicit numerical units/rounding, mechanical assumptions, full sequence rules, logical skill boundaries and empty/disclosing hints. Structural detection of hint leakage is advisory; document human review requirements.
+- [x] Implement the complete V3 logical schema and Better Auth-required account/verification/session relations, mapping AuthSession deliberately. Include approved hint/explanation versions, assistance events and audit/report models. Add the specified unique constraints and foreign keys plus a PostgreSQL partial unique index for one active session/user. Define row-locking strategy and idempotency storage for Task 4.
+- [x] Author all 50 original fixtures plus five lessons/worked examples. Fixtures use explicit provenance and never fabricated reviewer metadata. Seed only in development/test. Preserve immutable published content through protected write services and tests.
+- [x] Generate and apply the migration to a disposable real PostgreSQL database; validate relations, uniqueness, active-session constraint and fixture production rejection. Run `pnpm test tests/content`, `pnpm test:integration -- database`, and Prisma validation; expect all passing. Document rollback limitations and commit.
 
 ## Task 3: Maintained auth, entitlement and safe local automation
 
@@ -136,4 +136,5 @@ Exact framework pins are intentionally selected in Task 1 after checking compati
 ## Execution handoff
 
 Recommend subagent-driven execution: independent implementation/review gates for each task before final whole-branch review. Native execution remains an option. Founder chooses the method and confirms this implementation plan before code execution, as required by the writing-plans workflow.
+
 
