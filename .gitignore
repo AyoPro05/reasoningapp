@@ -16,3 +16,4 @@ outputs/
 *.log
 .DS_Store
 Thumbs.db
+packages/database/src/generated/

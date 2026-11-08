@@ -11,7 +11,7 @@ jobs:
     env:
       NODE_ENV: test
       APP_ENV: test
-      DATABASE_URL: postgresql://reasoningapp:ci-test-only@127.0.0.1:5432/reasoningapp_test
+      DATABASE_URL: postgresql://reasoningapp:ci-test-only@127.0.0.1:5432/reasoningapp_integration
       REDIS_URL: redis://127.0.0.1:6379/1
       AUTH_URL: http://localhost:3001
       WEB_ORIGIN: http://localhost:3000
@@ -29,10 +29,10 @@ jobs:
         env:
           POSTGRES_USER: reasoningapp
           POSTGRES_PASSWORD: ci-test-only
-          POSTGRES_DB: reasoningapp_test
+          POSTGRES_DB: reasoningapp_integration
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U reasoningapp -d reasoningapp_test"
+          --health-cmd "pg_isready -U reasoningapp -d reasoningapp_integration"
           --health-interval 5s --health-timeout 3s --health-retries 10
       redis:
         image: redis:8.2.2-alpine
@@ -50,11 +50,17 @@ jobs:
         with:
           node-version-file: .node-version
       - run: pnpm install --frozen-lockfile
+      - name: Generate the pinned Prisma client before source checks
+        run: pnpm --filter @reasoningapp/database db:generate
       - run: pnpm test
       - run: pnpm typecheck
       - name: Compile the shared foundation (client applications are later tasks)
         run: pnpm build
       - run: docker compose -f infra/compose.yaml config --quiet
-      - name: Integration checks when Task 2 adds real database tests
-        if: ${{ hashFiles('tests/integration/**/*.test.ts') != '' }}
+      - name: Deploy both database migrations
+        run: pnpm --filter @reasoningapp/database db:deploy
+      - name: Run real database integration checks with explicit test-only content
+        env:
+          DEVELOPMENT_FIXTURES_ENABLED: 'true'
+          ALLOW_UNREVIEWED_CONTENT: 'true'
         run: pnpm test:integration

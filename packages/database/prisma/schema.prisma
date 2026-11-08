@@ -1,0 +1,900 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum ContentState {
+  DEVELOPMENT
+  DRAFT
+  VALIDATION
+  SUBJECT_REVIEW
+  EDITORIAL_APPROVAL
+  PUBLISHED
+  RETIRED
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SessionMode {
+  LEARN
+  PRACTICE
+  MOCK
+  DAILY
+  REVIEW
+}
+
+enum SessionState {
+  CREATED
+  IN_PROGRESS
+  SUBMITTED
+  SCORED
+  EXPIRED
+  ABANDONED
+}
+
+enum AssistanceStage {
+  BEFORE_ANSWER
+  AFTER_ANSWER
+  AFTER_SCORING
+  WORKED_EXAMPLE
+}
+
+enum AssistanceLevel {
+  INDEPENDENT
+  HINT_1
+  HINT_2
+  HINT_3
+  SOLUTION_REVEALED
+}
+
+enum SupportAction {
+  HINT
+  EXPLANATION
+  WORKED_STEPS
+  DISTRACTOR
+  CLARIFY_TERM
+  RELATED_PRACTICE
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  DISABLED
+}
+
+enum EntitlementStatus {
+  ACTIVE
+  EXPIRED
+  REVOKED
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  TRIAL
+  GRACE
+  CANCELLED
+  EXPIRED
+}
+
+enum TicketStatus {
+  OPEN
+  INVESTIGATING
+  RESOLVED
+  CLOSED
+}
+
+// Maintained Better Auth core fields. Adapter: session.modelName = "AuthSession".
+// No product assessment session is used as an authentication session.
+model User {
+  id                      String                   @id @default(cuid())
+  name                    String
+  email                   String                   @unique
+  emailVerified           Boolean                  @default(false)
+  image                   String?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  preference              UserPreference?
+  authSessions            AuthSession[]
+  accounts                Account[]
+  installations           DeviceInstallation[]
+  deviceLeases            DeviceLease[]
+  authoredQuestions       Question[]               @relation("Author")
+  contentReviews          ContentReview[]          @relation("ContentReviewer")
+  reviewedHints           ApprovedHint[]           @relation("HintReviewer")
+  reviewedExplanations    ExplanationVersion[]     @relation("ExplanationReviewer")
+  sessions                PracticeSession[]
+  progress                SkillProgress[]
+  reviews                 ReviewSchedule[]
+  studyPlans              StudyPlan[]
+  billingCustomers        BillingCustomer[]
+  subscriptions           Subscription[]
+  purchases               PurchaseTransaction[]
+  entitlements            Entitlement[]
+  challengeEntries        ChallengeEntry[]
+  achievements            UserAchievement[]
+  notifications           Notification[]
+  notificationPreferences NotificationPreference[]
+  questionReports         QuestionReport[]
+  supportTickets          SupportTicket[]
+  auditEvents             AuditEvent[]
+  consents                ConsentRecord[]
+  supportEvents           LearningSupportEvent[]
+  tutorRequests           TutorRequest[]
+  operations              IdempotencyRecord[]
+
+  @@map("user")
+}
+
+model AuthSession {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("auth_session")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([identifier])
+  @@index([expiresAt])
+  @@map("verification")
+}
+
+model UserPreference {
+  userId        String   @id
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  language      String   @default("en-GB")
+  timeZone      String   @default("Europe/London")
+  theme         String   @default("system")
+  reducedMotion Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
+
+// Deferred device lease / transfer workflows.
+model DeviceInstallation {
+  id              String        @id @default(cuid())
+  userId          String
+  user            User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installationKey String        @unique
+  platform        String
+  appVersion      String?
+  lastSeenAt      DateTime      @default(now())
+  revokedAt       DateTime?
+  leases          DeviceLease[]
+
+  @@unique([id, userId])
+  @@index([userId])
+}
+
+model DeviceLease {
+  id             String             @id @default(cuid())
+  userId         String
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  installationId String
+  installation   DeviceInstallation @relation(fields: [installationId, userId], references: [id, userId], onDelete: Cascade)
+  issuedAt       DateTime           @default(now())
+  expiresAt      DateTime
+  revokedAt      DateTime?
+  policyVersion  String
+
+  @@index([userId, expiresAt])
+}
+
+model Category {
+  id         String              @id
+  titleKey   String              @unique
+  position   Int                 @unique
+  skills     CategorySkill[]
+  lessons    Lesson[]
+  questions  Question[]
+  sections   AssessmentSection[]
+  sessions   PracticeSession[]
+  challenges DailyChallenge[]
+}
+
+model Skill {
+  id           String           @id
+  titleKey     String           @unique
+  templateTags String[]
+  categories   CategorySkill[]
+  lessons      Lesson[]
+  questions    QuestionSkill[]
+  progress     SkillProgress[]
+  reviews      ReviewSchedule[]
+  tasks        StudyTask[]
+}
+
+model CategorySkill {
+  categoryId String
+  skillId    String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  skill      Skill    @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([categoryId, skillId])
+  @@index([skillId])
+}
+
+model Lesson {
+  id                             String          @id @default(cuid())
+  categoryId                     String
+  category                       Category        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  skillId                        String
+  skill                          Skill           @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  title                          String
+  body                           String
+  version                        Int             @default(1)
+  contentState                   ContentState    @default(DRAFT)
+  workedExampleQuestionVersionId String
+  workedExample                  QuestionVersion @relation(fields: [workedExampleQuestionVersionId], references: [id], onDelete: Restrict)
+  solutionRelease                AssistanceStage @default(WORKED_EXAMPLE)
+  createdAt                      DateTime        @default(now())
+
+  @@index([categoryId])
+  @@index([skillId])
+}
+
+model Question {
+  id         String            @id @default(cuid())
+  categoryId String
+  category   Category          @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  authorId   String?
+  author     User?             @relation("Author", fields: [authorId], references: [id], onDelete: SetNull)
+  createdAt  DateTime          @default(now())
+  versions   QuestionVersion[]
+
+  @@index([categoryId])
+}
+
+model QuestionVersion {
+  id              String               @id @default(cuid())
+  questionId      String
+  question        Question             @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  version         Int
+  stimulus        String
+  diagram         Json?
+  assumptions     String[]
+  provenance      Json
+  authoringNotes  Json?
+  contentState    ContentState         @default(DRAFT)
+  heldOutMock     Boolean              @default(false)
+  publishedAt     DateTime?
+  createdAt       DateTime             @default(now())
+  options         QuestionOption[]
+  answerKey       AnswerKey?
+  assets          QuestionAsset[]
+  skills          QuestionSkill[]
+  reviews         ContentReview[]
+  hints           ApprovedHint[]
+  explanations    ExplanationVersion[]
+  lessons         Lesson[]
+  items           SessionItem[]
+  reports         QuestionReport[]
+  reviewSchedules ReviewSchedule[]
+
+  @@unique([questionId, version])
+  @@index([contentState, heldOutMock])
+}
+
+model QuestionOption {
+  questionVersionId String
+  optionKey         String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  position          Int
+  text              String
+  keys              AnswerKey[]
+  responses         Response[]
+
+  @@id([questionVersionId, optionKey])
+  @@unique([questionVersionId, position])
+}
+
+model AnswerKey {
+  questionVersionId String          @id
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  optionKey         String
+  option            QuestionOption  @relation(fields: [questionVersionId, optionKey], references: [questionVersionId, optionKey], onDelete: Restrict)
+  scoringVersion    String          @default("option-v1")
+}
+
+model QuestionAsset {
+  id                String          @id @default(cuid())
+  questionVersionId String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  kind              String
+  storageKey        String
+  sha256            String
+  alternativeText   String
+
+  @@unique([questionVersionId, storageKey])
+}
+
+model QuestionSkill {
+  questionVersionId String
+  skillId           String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  skill             Skill           @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  primary           Boolean         @default(false)
+
+  @@id([questionVersionId, skillId])
+  @@index([skillId])
+}
+
+model ContentReview {
+  id                String          @id @default(cuid())
+  questionVersionId String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  stage             String
+  status            ReviewStatus    @default(PENDING)
+  reviewerId        String?
+  reviewer          User?           @relation("ContentReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewedAt        DateTime?
+  notes             String?
+  createdAt         DateTime        @default(now())
+
+  @@unique([questionVersionId, stage])
+}
+
+model ApprovedHint {
+  id                String                 @id @default(cuid())
+  questionVersionId String
+  questionVersion   QuestionVersion        @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  stage             Int
+  text              String
+  reviewStatus      ReviewStatus           @default(PENDING)
+  reviewerId        String?
+  reviewer          User?                  @relation("HintReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewedAt        DateTime?
+  publishedAt       DateTime?
+  events            LearningSupportEvent[]
+
+  @@unique([questionVersionId, stage])
+  @@unique([id, questionVersionId])
+  @@unique([id, questionVersionId, stage])
+}
+
+model ExplanationVersion {
+  id                   String          @id @default(cuid())
+  questionVersionId    String
+  questionVersion      QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  version              Int
+  shortText            String
+  workedSteps          String[]
+  distractorRationales Json
+  reviewStatus         ReviewStatus    @default(PENDING)
+  reviewerId           String?
+  reviewer             User?           @relation("ExplanationReviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  reviewedAt           DateTime?
+  publishedAt          DateTime?
+  createdAt            DateTime        @default(now())
+  items                SessionItem[]
+  tutorRequests        TutorRequest[]
+
+  @@unique([questionVersionId, version])
+  @@unique([id, questionVersionId])
+}
+
+// Full Mock / Daily product workflows remain deferred.
+model AssessmentBlueprint {
+  id              String              @id @default(cuid())
+  version         Int
+  name            String
+  mode            SessionMode
+  durationSeconds Int?
+  contentState    ContentState        @default(DRAFT)
+  sections        AssessmentSection[]
+  sessions        PracticeSession[]
+  challenges      DailyChallenge[]
+
+  @@unique([name, version])
+}
+
+model AssessmentSection {
+  id              String              @id @default(cuid())
+  blueprintId     String
+  blueprint       AssessmentBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Restrict)
+  categoryId      String
+  category        Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  position        Int
+  itemCount       Int
+  durationSeconds Int?
+
+  @@unique([blueprintId, position])
+}
+
+model PracticeSession {
+  id             String               @id @default(cuid())
+  userId         String
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
+  categoryId     String
+  category       Category             @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  blueprintId    String?
+  blueprint      AssessmentBlueprint? @relation(fields: [blueprintId], references: [id], onDelete: Restrict)
+  mode           SessionMode
+  state          SessionState         @default(CREATED)
+  createdAt      DateTime             @default(now())
+  startedAt      DateTime?
+  expiresAt      DateTime?
+  submittedAt    DateTime?
+  scoredAt       DateTime?
+  scoringVersion String               @default("option-v1")
+  items          SessionItem[]
+  result         SessionResult?
+  operations     IdempotencyRecord[]
+  challengeEntry ChallengeEntry?
+  // SQL migration adds one active session per user (CREATED / IN_PROGRESS / SUBMITTED).
+
+  @@unique([id, userId])
+  @@index([userId, createdAt])
+}
+
+model SessionItem {
+  userId               String
+  id                   String                 @id @default(cuid())
+  sessionId            String
+  session              PracticeSession        @relation(fields: [sessionId, userId], references: [id, userId], onDelete: Cascade)
+  questionVersionId    String
+  questionVersion      QuestionVersion        @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  explanationVersionId String?
+  explanationVersion   ExplanationVersion?    @relation(fields: [explanationVersionId, questionVersionId], references: [id, questionVersionId], onDelete: Restrict)
+  position             Int
+  optionOrder          String[]
+  solutionRelease      AssistanceStage        @default(AFTER_ANSWER)
+  response             Response?
+  supportEvents        LearningSupportEvent[]
+  tutorRequests        TutorRequest[]
+  reports              QuestionReport[]
+
+  @@unique([sessionId, position])
+  @@unique([id, questionVersionId])
+  @@unique([id, questionVersionId, userId])
+}
+
+model Response {
+  id                  String          @id @default(cuid())
+  sessionItemId       String          @unique
+  questionVersionId   String
+  sessionItem         SessionItem     @relation(fields: [sessionItemId, questionVersionId], references: [id, questionVersionId], onDelete: Cascade)
+  optionKey           String
+  option              QuestionOption  @relation(fields: [questionVersionId, optionKey], references: [questionVersionId, optionKey], onDelete: Restrict)
+  submittedAt         DateTime
+  correct             Boolean?
+  scoringVersion      String?
+  assistanceLevel     AssistanceLevel @default(INDEPENDENT)
+  assistanceSource    String?
+  misconceptionTag    String?
+  selfReportedReason  String?
+  firstAttempt        Boolean         @default(true)
+  elapsedMilliseconds Int?
+
+  @@unique([sessionItemId, questionVersionId])
+}
+
+model SessionResult {
+  sessionId           String          @id
+  session             PracticeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  total               Int
+  correct             Int
+  independentAttempts Int
+  independentCorrect  Int
+  assistedAttempts    Int
+  scoringVersion      String
+  summary             Json
+  scoredAt            DateTime        @default(now())
+}
+
+model LearningSupportEvent {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sessionItemId     String
+  questionVersionId String
+  sessionItem       SessionItem     @relation(fields: [sessionItemId, questionVersionId, userId], references: [id, questionVersionId, userId], onDelete: Cascade)
+  action            SupportAction
+  assistanceStage   AssistanceStage
+  hintStage         Int?
+  hintId            String?
+  hint              ApprovedHint?   @relation(fields: [hintId, questionVersionId, hintStage], references: [id, questionVersionId, stage], onDelete: Restrict)
+  occurredAt        DateTime        @default(now())
+
+  @@index([userId, occurredAt])
+  @@index([sessionItemId, assistanceStage])
+}
+
+model TutorRequest {
+  id                   String              @id @default(cuid())
+  userId               String
+  user                 User                @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sessionItemId        String
+  questionVersionId    String
+  sessionItem          SessionItem         @relation(fields: [sessionItemId, questionVersionId, userId], references: [id, questionVersionId, userId], onDelete: Cascade)
+  explanationVersionId String?
+  approvedContext      ExplanationVersion? @relation(fields: [explanationVersionId, questionVersionId], references: [id, questionVersionId], onDelete: Restrict)
+  action               SupportAction
+  assistanceStage      AssistanceStage
+  status               JobStatus           @default(DISABLED)
+  provider             String?
+  modelVersion         String?
+  promptVersion        String?
+  inputTokens          Int?
+  outputTokens         Int?
+  estimatedCostMicros  BigInt?
+  latencyMilliseconds  Int?
+  sanitizedError       String?
+  createdAt            DateTime            @default(now())
+
+  @@index([userId, createdAt])
+  @@index([sessionItemId])
+}
+
+model SkillProgress {
+  userId              String
+  skillId             String
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill               Skill     @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  independentAttempts Int       @default(0)
+  independentCorrect  Int       @default(0)
+  assistedAttempts    Int       @default(0)
+  assistedCorrect     Int       @default(0)
+  sampleSize          Int       @default(0)
+  lastAttemptAt       DateTime?
+  lastIndependentAt   DateTime?
+  policyVersion       String
+
+  @@id([userId, skillId])
+  @@index([skillId])
+}
+
+model ReviewSchedule {
+  id                     String          @id @default(cuid())
+  userId                 String
+  skillId                String
+  questionVersionId      String
+  user                   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill                  Skill           @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  questionVersion        QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  lastIndependentOutcome Boolean?
+  lastIndependentAt      DateTime?
+  dueAt                  DateTime
+  intervalDays           Int
+  policyVersion          String
+
+  @@unique([userId, questionVersionId])
+  @@index([userId, dueAt])
+}
+
+model StudyPlan {
+  id            String      @id @default(cuid())
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title         String
+  policyVersion String
+  createdAt     DateTime    @default(now())
+  archivedAt    DateTime?
+  tasks         StudyTask[]
+
+  @@index([userId])
+}
+
+model StudyTask {
+  id          String    @id @default(cuid())
+  planId      String
+  plan        StudyPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  skillId     String
+  skill       Skill     @relation(fields: [skillId], references: [id], onDelete: Restrict)
+  position    Int
+  dueAt       DateTime?
+  completedAt DateTime?
+
+  @@unique([planId, position])
+}
+
+model BillingCustomer {
+  id                 String         @id @default(cuid())
+  userId             String
+  user               User           @relation(fields: [userId], references: [id], onDelete: Restrict)
+  provider           String
+  externalCustomerId String
+  subscriptions      Subscription[]
+
+  @@unique([provider, externalCustomerId])
+  @@unique([userId, provider])
+  @@unique([id, userId])
+}
+
+model Subscription {
+  id                     String                @id @default(cuid())
+  userId                 String
+  user                   User                  @relation(fields: [userId], references: [id], onDelete: Restrict)
+  billingCustomerId      String
+  billingCustomer        BillingCustomer       @relation(fields: [billingCustomerId, userId], references: [id, userId], onDelete: Restrict)
+  provider               String
+  externalSubscriptionId String
+  status                 SubscriptionStatus
+  productId              String
+  currentPeriodEnd       DateTime
+  cancelledAt            DateTime?
+  entitlements           Entitlement[]
+  purchases              PurchaseTransaction[]
+
+  @@unique([provider, externalSubscriptionId])
+  @@unique([id, userId])
+  @@index([userId, status])
+}
+
+model PurchaseTransaction {
+  id                    String        @id @default(cuid())
+  userId                String
+  user                  User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subscriptionId        String?
+  subscription          Subscription? @relation(fields: [subscriptionId, userId], references: [id, userId], onDelete: Restrict)
+  provider              String
+  externalTransactionId String
+  productId             String
+  amountMinor           Int
+  currency              String
+  purchasedAt           DateTime
+  refundedAt            DateTime?
+
+  @@unique([provider, externalTransactionId])
+  @@index([userId])
+}
+
+model Entitlement {
+  id             String            @id @default(cuid())
+  userId         String
+  user           User              @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subscriptionId String?
+  subscription   Subscription?     @relation(fields: [subscriptionId, userId], references: [id, userId], onDelete: Restrict)
+  key            String
+  source         String
+  status         EntitlementStatus
+  startsAt       DateTime          @default(now())
+  expiresAt      DateTime?
+  revokedAt      DateTime?
+
+  @@unique([userId, key, source])
+  @@index([userId, status, expiresAt])
+}
+
+model ProviderEvent {
+  id              String    @id @default(cuid())
+  provider        String
+  externalEventId String
+  payloadHash     String
+  payload         Json
+  status          JobStatus @default(PENDING)
+  receivedAt      DateTime  @default(now())
+  processedAt     DateTime?
+  sanitizedError  String?
+
+  @@unique([provider, externalEventId])
+  @@index([status, receivedAt])
+}
+
+model DailyChallenge {
+  id          String              @id @default(cuid())
+  date        DateTime            @unique @db.Date
+  categoryId  String
+  category    Category            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  blueprintId String
+  blueprint   AssessmentBlueprint @relation(fields: [blueprintId], references: [id], onDelete: Restrict)
+  opensAt     DateTime
+  closesAt    DateTime
+  entries     ChallengeEntry[]
+}
+
+model ChallengeEntry {
+  id          String          @id @default(cuid())
+  challengeId String
+  challenge   DailyChallenge  @relation(fields: [challengeId], references: [id], onDelete: Restrict)
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sessionId   String          @unique
+  session     PracticeSession @relation(fields: [sessionId, userId], references: [id, userId], onDelete: Restrict)
+  enteredAt   DateTime        @default(now())
+
+  @@unique([challengeId, userId])
+  @@unique([sessionId, userId])
+}
+
+model Achievement {
+  id             String            @id
+  titleKey       String
+  descriptionKey String
+  policyVersion  String
+  users          UserAchievement[]
+}
+
+model UserAchievement {
+  userId        String
+  achievementId String
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Restrict)
+  awardedAt     DateTime    @default(now())
+  evidence      Json
+
+  @@id([userId, achievementId])
+}
+
+model OutboxEvent {
+  id          String    @id @default(cuid())
+  type        String
+  aggregateId String
+  dedupeKey   String    @unique
+  payload     Json
+  status      JobStatus @default(PENDING)
+  createdAt   DateTime  @default(now())
+  availableAt DateTime  @default(now())
+  processedAt DateTime?
+  attempts    Int       @default(0)
+
+  @@index([status, availableAt])
+}
+
+model Notification {
+  id          String                @id @default(cuid())
+  userId      String
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dedupeKey   String                @unique
+  templateKey String
+  parameters  Json
+  channel     String
+  status      JobStatus             @default(PENDING)
+  scheduledAt DateTime
+  sentAt      DateTime?
+  attempts    NotificationAttempt[]
+
+  @@index([userId, scheduledAt])
+  @@index([status, scheduledAt])
+}
+
+model NotificationAttempt {
+  id                String       @id @default(cuid())
+  notificationId    String
+  notification      Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  attempt           Int
+  provider          String
+  status            JobStatus
+  externalMessageId String?
+  sanitizedError    String?
+  attemptedAt       DateTime     @default(now())
+
+  @@unique([notificationId, attempt])
+}
+
+model NotificationPreference {
+  userId          String
+  channel         String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  enabled         Boolean  @default(false)
+  quietHoursStart Int?
+  quietHoursEnd   Int?
+  updatedAt       DateTime @updatedAt
+
+  @@id([userId, channel])
+}
+
+model QuestionReport {
+  id                String          @id @default(cuid())
+  userId            String
+  user              User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  questionVersionId String
+  questionVersion   QuestionVersion @relation(fields: [questionVersionId], references: [id], onDelete: Restrict)
+  sessionItemId     String?
+  sessionItem       SessionItem?    @relation(fields: [sessionItemId, questionVersionId, userId], references: [id, questionVersionId, userId], onDelete: Restrict)
+  reason            String
+  detail            String?
+  status            TicketStatus    @default(OPEN)
+  createdAt         DateTime        @default(now())
+  resolvedAt        DateTime?
+
+  @@index([questionVersionId, status])
+  @@index([userId])
+}
+
+model SupportTicket {
+  id         String       @id @default(cuid())
+  userId     String
+  user       User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  subject    String
+  body       String
+  status     TicketStatus @default(OPEN)
+  createdAt  DateTime     @default(now())
+  resolvedAt DateTime?
+
+  @@index([userId, status])
+}
+
+model AuditEvent {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String
+  requestId  String?
+  metadata   Json?
+  occurredAt DateTime @default(now())
+
+  @@index([entityType, entityId, occurredAt])
+  @@index([actorId, occurredAt])
+}
+
+model ConsentRecord {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose       String
+  policyVersion String
+  granted       Boolean
+  recordedAt    DateTime @default(now())
+
+  @@unique([userId, purpose, policyVersion])
+}
+
+// Task 4 will store the canonical request fingerprint and the exact replay DTO in
+// the same locked transaction as answer/submit; no provider calls inside it.
+model IdempotencyRecord {
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  sessionId      String?
+  session        PracticeSession? @relation(fields: [sessionId, userId], references: [id, userId], onDelete: Cascade)
+  operation      String
+  key            String
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  createdAt      DateTime         @default(now())
+  expiresAt      DateTime
+
+  @@unique([userId, operation, key])
+  @@index([expiresAt])
+}

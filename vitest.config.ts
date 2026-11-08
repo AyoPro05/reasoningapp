@@ -1,10 +1,8 @@
 import { defineConfig } from 'vitest/config';
-import { fileURLToPath } from 'node:url';
+import { workspaceAliases } from './vitest.workspace-aliases.js';
 
 export default defineConfig({
-  resolve: { alias: {
-    '@reasoningapp/question-render-spec': fileURLToPath(new URL('./packages/question-render-spec/src/index.ts', import.meta.url)),
-  } },
+  resolve: { alias: workspaceAliases },
   test: {
     environment: 'node',
     include: ['tests/unit/**/*.test.ts', 'tests/content/**/*.test.ts', 'tests/security/**/*.test.ts'],

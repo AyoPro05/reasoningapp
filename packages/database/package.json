@@ -1,9 +1,27 @@
 {
-  "name": "@reasoningapp/database", "version": "0.0.0", "private": true, "type": "module",
+  "name": "@reasoningapp/database",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
   "scripts": {
-    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
-    "db:seed": "node --env-file-if-exists=../../.env src/seed.ts"
+    "db:generate": "prisma generate --config prisma.config.ts",
+    "db:migrate": "prisma migrate dev --config prisma.config.ts",
+    "db:deploy": "prisma migrate deploy --config prisma.config.ts",
+    "db:seed": "tsx src/seed-cli.ts"
   },
-  "dependencies": { "@prisma/client": "7.10.1", "@reasoningapp/config": "workspace:*" },
-  "devDependencies": { "prisma": "7.10.1" }
+  "dependencies": {
+    "@prisma/client": "7.10.1",
+    "@reasoningapp/config": "workspace:*",
+    "@prisma/adapter-pg": "7.10.1",
+    "pg": "8.23.1",
+    "@reasoningapp/question-validation": "workspace:*"
+  },
+  "devDependencies": {
+    "prisma": "7.10.1",
+    "@types/pg": "8.23.1",
+    "tsx": "4.23.15"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  }
 }
