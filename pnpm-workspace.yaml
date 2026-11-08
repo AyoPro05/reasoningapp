@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+
+saveExact: true
+strictPeerDependencies: true
+autoInstallPeers: true
+onlyBuiltDependencies:
+  - '@prisma/engines'
+  - esbuild
+  - prisma
+  - sharp
+  - unrs-resolver

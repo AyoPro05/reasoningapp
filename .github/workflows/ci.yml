@@ -1,0 +1,60 @@
+name: Foundation checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  foundation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      NODE_ENV: test
+      APP_ENV: test
+      DATABASE_URL: postgresql://reasoningapp:ci-test-only@127.0.0.1:5432/reasoningapp_test
+      REDIS_URL: redis://127.0.0.1:6379/1
+      AUTH_URL: http://localhost:3001
+      WEB_ORIGIN: http://localhost:3000
+      AUTH_SECRET: ci-test-only-secret-never-use-in-production-123456
+      MAIL_PROVIDER: fake
+      DEVELOPMENT_FIXTURES_ENABLED: 'false'
+      SKIP_EMAIL_VERIFICATION: 'false'
+      SEED_VERIFIED_USERS: 'false'
+      ALLOW_UNREVIEWED_CONTENT: 'false'
+      AI_ASSISTANCE_ENABLED: 'false'
+      LIVE_BILLING_ENABLED: 'false'
+    services:
+      postgres:
+        image: postgres:18.6-alpine
+        env:
+          POSTGRES_USER: reasoningapp
+          POSTGRES_PASSWORD: ci-test-only
+          POSTGRES_DB: reasoningapp_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U reasoningapp -d reasoningapp_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:8.2.2-alpine
+        ports: ['6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.34.9
+          run_install: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm typecheck
+      - name: Compile the shared foundation (client applications are later tasks)
+        run: pnpm build
+      - run: docker compose -f infra/compose.yaml config --quiet
+      - name: Integration checks when Task 2 adds real database tests
+        if: ${{ hashFiles('tests/integration/**/*.test.ts') != '' }}
+        run: pnpm test:integration

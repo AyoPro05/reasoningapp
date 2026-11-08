@@ -1,0 +1,11 @@
+{
+  "name": "@reasoningapp/api", "version": "0.0.0", "private": true, "type": "module",
+  "dependencies": {
+    "@reasoningapp/config": "workspace:*",
+    "@reasoningapp/contracts": "workspace:*",
+    "@reasoningapp/database": "workspace:*",
+    "@reasoningapp/question-validation": "workspace:*",
+    "@reasoningapp/scoring-engine": "workspace:*",
+    "fastify": "5.12.8"
+  }
+}

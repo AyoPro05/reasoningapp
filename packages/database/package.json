@@ -1,0 +1,9 @@
+{
+  "name": "@reasoningapp/database", "version": "0.0.0", "private": true, "type": "module",
+  "scripts": {
+    "db:migrate": "prisma migrate dev --schema prisma/schema.prisma",
+    "db:seed": "node --env-file-if-exists=../../.env src/seed.ts"
+  },
+  "dependencies": { "@prisma/client": "7.10.1", "@reasoningapp/config": "workspace:*" },
+  "devDependencies": { "prisma": "7.10.1" }
+}

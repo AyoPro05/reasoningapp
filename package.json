@@ -1,0 +1,23 @@
+{
+  "name": "reasoningapp",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.34.9",
+  "engines": { "node": "24.22.2", "pnpm": "10.34.9" },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:e2e": "playwright test",
+    "db:migrate": "pnpm --filter @reasoningapp/database db:migrate",
+    "db:seed": "pnpm --filter @reasoningapp/database db:seed"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.65.0",
+    "@types/node": "24.19.2",
+    "typescript": "7.0.2",
+    "vitest": "5.1.0"
+  }
+}

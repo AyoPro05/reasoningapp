@@ -1,0 +1,40 @@
+name: reasoningapp-local
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    environment:
+      POSTGRES_USER: reasoningapp
+      POSTGRES_PASSWORD: local-dev-only
+      POSTGRES_DB: reasoningapp_dev
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U reasoningapp -d reasoningapp_dev']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  redis:
+    image: redis:8.2.2-alpine
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+  mailpit:
+    image: axllent/mailpit:v1.27.10
+    environment:
+      MP_SMTP_AUTH_ACCEPT_ANY: 'false'
+    ports:
+      - '127.0.0.1:1025:1025'
+      - '127.0.0.1:8025:8025'
+    # No SMTP relay/forwarding provider is configured.
+volumes:
+  postgres-data:
+  redis-data:

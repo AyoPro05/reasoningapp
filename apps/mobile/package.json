@@ -1,0 +1,9 @@
+{
+  "name": "@reasoningapp/mobile", "version": "0.0.0", "private": true,
+  "dependencies": {
+    "@reasoningapp/contracts": "workspace:*",
+    "@reasoningapp/design-tokens": "workspace:*",
+    "@reasoningapp/question-render-spec": "workspace:*",
+    "expo": "58.0.23", "react": "19.3.0", "react-native": "0.88.1"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "name": "@reasoningapp/contracts", "version": "0.0.0", "private": true, "type": "module",
+  "exports": { ".": "./src/index.ts", "./session": "./src/session.ts", "./learning-support": "./src/learning-support.ts" },
+  "dependencies": { "@reasoningapp/question-render-spec": "workspace:*", "zod": "4.6.7" }
+}

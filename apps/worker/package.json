@@ -1,0 +1,8 @@
+{
+  "name": "@reasoningapp/worker", "version": "0.0.0", "private": true, "type": "module",
+  "dependencies": {
+    "@reasoningapp/config": "workspace:*",
+    "@reasoningapp/database": "workspace:*",
+    "bullmq": "6.7.2"
+  }
+}

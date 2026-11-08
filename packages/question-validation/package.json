@@ -1,0 +1,4 @@
+{
+  "name": "@reasoningapp/question-validation", "version": "0.0.0", "private": true, "type": "module",
+  "dependencies": { "@reasoningapp/question-render-spec": "workspace:*", "zod": "4.6.7" }
+}
