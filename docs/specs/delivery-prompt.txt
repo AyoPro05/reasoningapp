@@ -1,0 +1,60 @@
+You are the principal engineer, learning-product architect, and security lead for ReasoningApp. Implement the accompanying Version 3.0 specification. Inspect the repository first. Reuse working code and all approved Version 2 platform/security/billing requirements; do not rebuild or duplicate auth, billing, or session services. Version 3 adds English-only delivery and guided learning, not a new chatbot product.
+
+CONFIRMED SCOPE
+Five categories: inductive, logical, numerical, verbal, mechanical. Mobile assessment preparation plus daily reasoning practice. Target GBP 5.99/month. No BizOpt trial/team features. No guaranteed passing, IQ/medical benefit, affiliation, or psychometric-validity claims. Original/licensed content only.
+
+STACK / DEVICES
+React Native/Expo/TypeScript iOS/iPadOS/Android phone/tablet; Next.js React learner web/admin/public site; Fastify TypeScript modular API; PostgreSQL/Prisma; SQLite drafts; SecureStore credentials; Redis/BullMQ with DB outbox; object storage/CDN; pnpm workspace. RevenueCat native purchases proposed, choose ONE web billing approach via ADR. Shared contracts/specs/rules/tokens; keys and sensitive scoring content server-only. Test Vitest/integration/Playwright/Maestro/physical devices; monitoring redacted logs/Sentry.
+Verify compatible stable SDK/dependencies, commit lockfile, publish dated tested support matrix. Android 10+ is proposed; iOS minima follow SDK/native dependencies; browser current/previous supported releases. No all-device/historical-OS claims. Include actual browser learner practice, not marketing alone.
+
+ENGLISH ONLY
+English UI/content/explanations/AI/emails/push/support/listing drafts. UK English conventions. No language picker, automatic translation, or multilingual advertising. Keep strings separate and format dates/prices correctly. Non-English requests receive a brief English notice and simpler-English option; no translation workflow. Do not disable OS accessibility.
+
+LEARNING METHOD - NO FEATURE BLOAT
+Integrate into existing Learn/Practice/Results/Review screens:
+Try -> commit -> reviewed feedback -> understand -> different related approved item without assistance -> revisit later.
+Use one reviewed worked example before a related problem for novices; gradually fade scaffolding. Authored hint ladder: concept, relationship, partial method; solution after submission. Offer a misconception note supported by reviewed distractor mapping and optional learner reason; do not diagnose from speed. Spaced review uses different approved questions; initial 1/3/7-day intervals are configurable heuristics, not proven optimal. Encourage independent accuracy before optional timing, never change a timer silently. End with three lines: improved, revisit, next action from real evidence. No new chatbot tab, social features, or guilt streaks.
+
+CONTEXTUAL EXPLAIN THIS ASSISTANT
+Actions: explain simply, show reviewed steps, explain selected distractor, clarify term. Pre-answer hints use reviewed authored hints, not a model with the full solution. Related practice selects from approved bank; no unchecked generated follow-up. AI is optional clarification, not scoring authority, publisher, readiness assessor, live employer-test solver, or general chat.
+Use exact approved question/explanation version. Server builds permitted context and authorizes user/item/mode/state/entitlement. No client-supplied key/solution/permission. Before answer do not send full key/solution to model. After submission use only the permitted reviewed solution. Structured concise English response: explanation, optional instructional steps, supported misconception note, next action. Do not request or expose chain-of-thought or fabricated confidence scores.
+On missing/inconsistent context, timeout, outage, or usage limit: valid static reviewed explanation or review/report message. Never improvise. A dispute creates a report; AI cannot change scores/keys. Static core learning works with AI disabled and, for packaged content, offline.
+
+MODE SECURITY
+Learn: help allowed and labeled. Practice: hints only when allowed; mark pre-answer help assisted. Post-answer review must not erase timing of help. Mock active: server blocks ALL hints/AI/explanations/key endpoints; no UI-only gates. Reveal after whole-session submission and declared release policy. Daily scored defaults unassisted; feedback after completion. Review allows explanation and tracks help. Block direct request bypass, cross-user access, cached solution leakage, held-out mock exposure.
+
+DATA / MIGRATIONS
+Preserve Version 3 logical models: identity/preferences/devices, catalog/skills/lessons, immutable question versions/options/keys/assets/reviews, sessions/items/responses/results, progress/review/plans, billing/entitlements/provider inbox, daily/achievements, outbox/notifications, reports/support/audit/consent.
+Add only missing approved-hint stages; immutable explanation versions; LearningSupportEvent for stage/action/timestamp; minimal TutorRequest metadata; response assistance/self-reported reason; review policy version/outcome; assisted vs independent progress counts. Use existing skill/template tags for related items or a small reviewed mapping. Full transcripts off by default.
+Generate complete valid Prisma relations/enums/indexes/FKs/migration/rollback notes. Preserve uniqueness for question version, option key, session position, current response per item, provider events/transactions, user-skill progress, notification dedupe. Keep historical scoring versions. Never silently overwrite published items or old results.
+
+IMPLEMENTATION PATCH
+API module learning-support/: authorization, context-builder, hint-service, tutor-service, related-item-selector, providers/ai-provider, policies. Extend personalization/review-scheduler. Add contracts/learning-support and reviewed hint validation. Mobile and web: ExplainThisPanel, HintLadder, WorkedExample, MisconceptionNote, RelatedPracticeAction, SessionLearningSummary inside existing screens. No new tab. Add loading/unavailable/limit/report/blocked/accessibility/theme/network states.
+Suggested /v1 session item endpoints: hints, explanation, tutor, related-practice; session learning-summary. All validate ownership, exact version, mode/state, permission, allowance, rate limit. No mock bank leakage.
+
+CONTENT / SCORING
+Deterministic server scoring online; no live AI requirement. Verbal True=entailed, False=contradicted, Cannot Say=neither. Numerical units/rounding/tolerances explicit. Inductive full sequence plus competing-rule review. Mechanical assumptions reviewed. Logical skill boundaries explicit. Reviewed structured diagrams, not unchecked AI images.
+Draft->validation->subject review->editorial approval->publish->monitor/correct/retire; no self-approval by default. Every explanation/hint version reviewed. Proposed bank gates 10/category development, 50 beta, 100 paid; not auto-publication permission. Hold out mocks.
+Session CREATED->IN_PROGRESS->SUBMITTED->SCORED, EXPIRED/ABANDONED; server deadline, monotonic display, declared cutoff, incremental saves, idempotent/concurrency-safe submit, exact option order, no premature key. Assistance is server-recorded. No fake 100% for no data, population percentiles, or employer pass probabilities. Separate modes/assistance/offline.
+
+AI OPERATIONS
+Server-only keys, provider adapter, feature flag/kill switch, timeout, rate/token/output/user and total spend budgets, circuit breaker. No unlimited AI claim; actual allowance needs founder cost approval. Cache safe public paraphrases only by exact question/explanation/action/prompt/language/access stage; scope personalized output to user/session. Prevent stale context and pre-answer solution cache reuse. Minimize retention; no secrets or sensitive inputs in logs. Record model/prompt/context/latency/status/usage. Document vendor retention/training/region settings truthfully. Free text bounded/untrusted; no upload solver. Prompt-injection protections and output evaluation, not a claim of perfect AI validation.
+
+BILLING / DEVICES / PRIVACY
+Verified events and periodic provider reconciliation, restore, account-linking, retries/dedupe, refunds/revocation, cancellation distinct from paid access. One-device permanent lock is unresolved: review store requirements and seek approval; propose personal account/one session/secure transfer/compliant restore. No perfect offline enforcement.
+Maintained auth/verification/recovery/session revocation; ownership/admin least privilege; rate limits; retention/export/delete. Separate transactional from optional messages, outbox + workers, consent/suppression/signatures/dedupe, fake providers in tests. No real recipients or charges in tests. Audience and refund policies need approval.
+
+TESTS / EVALUATION
+Retain platform/scoring/billing/session/accessibility/offline tests. Add English-only behavior; mock API blocking; cross-user/cache leakage; no pre-answer key context; AI cannot change score; help tracked/excluded from independent readiness; different approved related items; no held-out exposure; timeout/static fallback; versioned caches; review rescheduling; English reveal-key/prompt-injection tests; AI-offline core learning.
+Build human-reviewed evaluation items in all five categories, covering ambiguity, disputed keys, verbal Cannot Say, rounding, mechanical assumptions, and adversarial requests. Assess fidelity, contradiction, clarity, leakage/safety. Agree thresholds before enabling; any known material contradiction/leakage blocks rollout. Do not call automatic checks proof of correctness.
+Measure independent follow-up and later retrieval, not chat volume. General spacing/retrieval/worked-example evidence is rationale, not proof this app improves job outcomes. Document experiments/privacy.
+
+DOCS
+Update PRD, architecture, stack decisions, dated platform matrix, content/scoring/device/billing/privacy policies, decision log, release checklist. Add learning-method.md, ai-assistance-policy.md, ai-evaluation-set.md, language-policy.md.
+
+ORDER
+Audit; document confirmed/proposed/blocker decisions; foundation/auth/schema; mobile+web deterministic practice slice; content/review; secure mock permissions/resilience; sandbox billing/automation; STATIC guided loop; optional AI behind flag after evaluation/cost approval; remaining progress/daily/offline; closed beta and evidence; founder-approved release.
+For an existing build, implement missing portions in small diffs and do not redo completed foundations.
+
+DELIVERY
+Each increment: changed files, migrations, commands actually run, test results, UI evidence, configuration placeholders, limitations, release blockers. Never claim unrun tests passed or untested OS compatibility. No paid provisioning, destructive production migration, deployment, real email/charge, or publication without approval. Start with repository audit and first missing static guided-learning slice; keep AI off until authorized and tested.
