@@ -1,8 +1,8 @@
 {
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "packages", "outDir": "dist/packages",
+    "rootDir": ".", "outDir": "dist",
     "declaration": true, "declarationMap": true, "sourceMap": true
   },
-  "include": ["packages/*/src/**/*.ts"]
+  "include": ["packages/*/src/**/*.ts", "apps/api/src/**/*.ts", "apps/worker/src/**/*.ts"]
 }

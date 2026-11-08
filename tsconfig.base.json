@@ -7,7 +7,10 @@
       "@reasoningapp/contracts": ["./packages/contracts/src/index.ts"],
       "@reasoningapp/question-render-spec": ["./packages/question-render-spec/src/index.ts"],
       "@reasoningapp/design-tokens": ["./packages/design-tokens/src/index.ts"],
-      "@reasoningapp/config": ["./packages/config/src/index.ts"]
+      "@reasoningapp/config": ["./packages/config/src/index.ts"],
+      "@reasoningapp/database": ["./packages/database/src/index.ts"],
+      "@reasoningapp/question-validation": ["./packages/question-validation/src/index.ts"],
+      "@reasoningapp/scoring-engine": ["./packages/scoring-engine/src/index.ts"]
     },
     "strict": true,
     "noUncheckedIndexedAccess": true,
