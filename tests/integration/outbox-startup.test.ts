@@ -1,5 +1,5 @@
 import { fork } from 'node:child_process';
-import { createServer } from 'node:net';
+import { createServer, type Socket } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { performance } from 'node:perf_hooks';
 import { afterAll, beforeAll, expect, test } from 'vitest';
@@ -24,6 +24,47 @@ async function closedLoopbackPort(): Promise<number> {
   if (!address || typeof address === 'string') throw new Error('No test loopback port');
   await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
   return address.port;
+}
+
+/** Actual TCP transport: accepts/reads startup bytes but never sends a Redis reply. */
+async function silentRedisEndpoint() {
+  const sockets = new Set<Socket>();
+  const receivedStartup = new Set<Socket>();
+  const waiters = new Set<() => void>();
+  const wake = () => { for (const waiter of [...waiters]) waiter(); };
+  const server = createServer(socket => {
+    sockets.add(socket);
+    socket.on('error', () => {});
+    socket.on('data', () => { receivedStartup.add(socket); wake(); });
+    socket.once('close', () => { sockets.delete(socket); receivedStartup.delete(socket); wake(); });
+    wake();
+  });
+  await new Promise<void>((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => resolve());
+  });
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('No silent test endpoint port');
+  return {
+    port: address.port,
+    // Require live sockets that have sent actual startup commands, not merely
+    // a race where SIGTERM happened before TCP connection/initialisation.
+    waitForStartupConnections(count: number, timeoutMs: number): Promise<boolean> {
+      if (receivedStartup.size >= count) return Promise.resolve(true);
+      return new Promise(resolve => {
+        const check = () => {
+          if (receivedStartup.size < count) return;
+          clearTimeout(timer); waiters.delete(check); resolve(true);
+        };
+        const timer = setTimeout(() => { waiters.delete(check); resolve(false); }, timeoutMs);
+        waiters.add(check);
+      });
+    },
+    async close() {
+      for (const socket of sockets) socket.destroy();
+      await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    },
+  };
 }
 
 type Observation = { kind: string; rejected?: boolean; clientsObserved?: number; connectionsEnded?: boolean };
@@ -145,6 +186,80 @@ test('Redis startup outage SIGTERM interrupts an in-flight publication and close
       JSON.stringify({ ...timing, exitCode: harness.exitCode, observations: harness.observations })).toBe(true);
     console.info('Task 3 outage timing', JSON.stringify(timing));
   } finally { await harness.stopAndReap(); }
+  const retained = await db.outboxEvent.findUniqueOrThrow({ where: { id: row.id } });
+  expect(retained.status).toBe('PENDING');
+  expect(retained.attempts).toBe(0);
+});
+
+test('Redis silent startup bounds actual producer publication and normal exit with its due row retained', async () => {
+  const row = await dueMail('silent-publisher');
+  const endpoint = await silentRedisEndpoint();
+  let harness: ReturnType<typeof spawnOutage> | undefined;
+  try {
+    harness = spawnOutage('publisher', row.id, endpoint.port);
+    const child = harness;
+    expect(await child.waitFor(() => child.has('publish-started'), 10_000), JSON.stringify(child.observations)).toBe(true);
+    const startedAt = child.observedAt('publish-started')!;
+    const remaining = () => Math.max(0, 5000 - (performance.now() - startedAt));
+    expect(await endpoint.waitForStartupConnections(1, remaining())).toBe(true);
+    expect(await child.waitFor(() => child.has('cleanup-finished'), remaining()), JSON.stringify(child.observations)).toBe(true);
+    expect(child.has('publication-rejected')).toBe(true);
+    expect(child.observations.some(message => message.kind === 'publish-settled' && message.rejected)).toBe(true);
+    const cleanup = child.observations.find(message => message.kind === 'cleanup-finished');
+    expect((cleanup?.clientsObserved ?? 0) > 0).toBe(true);
+    expect(cleanup?.connectionsEnded).toBe(true);
+    const exitedNormally = await child.waitFor(() => child.exitCode === 0, remaining());
+    const timing = { scenario: 'silent-producer', budgetMs: 5000,
+      cleanupMs: Math.round(child.observedAt('cleanup-finished')! - startedAt),
+      normalExitMs: child.exitedAt === null ? null : Math.round(child.exitedAt - startedAt) };
+    expect(exitedNormally && child.exitedAt !== null && child.exitedAt - startedAt <= 5000,
+      JSON.stringify({ ...timing, exitCode: child.exitCode, observations: child.observations })).toBe(true);
+    console.info('Task 3 outage timing', JSON.stringify(timing));
+  } finally {
+    try { await harness?.stopAndReap(); }
+    finally { await endpoint.close(); }
+  }
+  const retained = await db.outboxEvent.findUniqueOrThrow({ where: { id: row.id } });
+  expect(retained.status).toBe('PENDING');
+  expect(retained.attempts).toBe(0);
+});
+
+test('Redis silent startup SIGTERM cancels the live unready blocking duplicate and exits normally with its due row retained', async () => {
+  const row = await dueMail('silent-worker');
+  await db.outboxEvent.updateMany({ where: { aggregateId: runId, id: { not: row.id } }, data: { availableAt: new Date(Date.now() + 60_000) } });
+  const endpoint = await silentRedisEndpoint();
+  let harness: ReturnType<typeof spawnOutage> | undefined;
+  try {
+    harness = spawnOutage('worker', row.id, endpoint.port);
+    const child = harness;
+    expect(await child.waitFor(() => child.has('publish-started'), 10_000), JSON.stringify(child.observations)).toBe(true);
+    // The caller-owned client, dedicated blocking duplicate and producer must
+    // all be TCP-connected and have sent commands to the silent endpoint.
+    expect(await endpoint.waitForStartupConnections(3, 10_000)).toBe(true);
+    const startedAt = performance.now();
+    const remaining = () => Math.max(0, 5000 - (performance.now() - startedAt));
+    child.child.send('terminate');
+    expect(await child.waitFor(() => child.has('termination-emitted'), Math.min(2000, remaining()))).toBe(true);
+    const cleanedUp = await child.waitFor(() => child.has('cleanup-finished'), remaining());
+    if (!cleanedUp) {
+      child.child.send('inspect-shutdown');
+      await child.waitFor(() => child.has('shutdown-status'), 1000);
+    }
+    expect(cleanedUp, JSON.stringify(child.observations)).toBe(true);
+    const cleanup = child.observations.find(message => message.kind === 'cleanup-finished');
+    expect((cleanup?.clientsObserved ?? 0) >= 3).toBe(true);
+    expect(cleanup?.connectionsEnded).toBe(true);
+    const exitedNormally = await child.waitFor(() => child.exitCode === 0, remaining());
+    const timing = { scenario: 'silent-SIGTERM', budgetMs: 5000,
+      cleanupMs: Math.round(child.observedAt('cleanup-finished')! - startedAt),
+      normalExitMs: child.exitedAt === null ? null : Math.round(child.exitedAt - startedAt) };
+    expect(exitedNormally && child.exitedAt !== null && child.exitedAt - startedAt <= 5000,
+      JSON.stringify({ ...timing, exitCode: child.exitCode, observations: child.observations })).toBe(true);
+    console.info('Task 3 outage timing', JSON.stringify(timing));
+  } finally {
+    try { await harness?.stopAndReap(); }
+    finally { await endpoint.close(); }
+  }
   const retained = await db.outboxEvent.findUniqueOrThrow({ where: { id: row.id } });
   expect(retained.status).toBe('PENDING');
   expect(retained.attempts).toBe(0);

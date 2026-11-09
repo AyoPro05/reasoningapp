@@ -144,12 +144,16 @@ deadline that actively disconnects the underlying client. Producer reconnects ar
 disabled; a later database polling pass creates a fresh producer after disposing
 the failed one. Aborting shutdown immediately interrupts pending producer work.
 Both timeout and abort await the actual publication settlement and connection end;
-there is no detached Promise.race operation. Worker shutdown marks the consumer
-closing, makes its inherited Redis retry strategy stop-aware, and interrupts the
-injected client through its real connection lifecycle. During reconnect backoff,
-the next connecting transition is interrupted so readiness waiters receive an
-actual end event. It lets Worker.close own blocking/backend cleanup and joins the
-run before closing DB. Consumer reconnect and BullMQ run-retry delays are bounded
+there is no detached Promise.race operation. The consumer uses a per-worker
+BullMQ backend factory with an explicitly owned main ioredis client and its public
+duplicate for blocking operations. Both RedisConnection wrappers are shared: the
+application owns raw client closure, and Worker.close owns backend metadata and
+current-job cleanup. Shutdown marks closing and directly cancels BOTH raw clients
+before awaiting readiness, including a TCP-connected client that never receives
+Redis startup replies. It joins both initialization outcomes, real client-end
+events, Worker.close and the run/current jobs before closing DB. During reconnect
+backoff, the next connecting transition is interrupted so readiness waiters receive
+an actual end event. Consumer reconnect and BullMQ run-retry delays are bounded
 to 250 ms; the connection timeout remains one second. Backend readiness promises
 are not bypassed with synthetic statuses or forced closed ahead of initialisation.
 Signal listeners/deadline timers are removed.
@@ -216,6 +220,10 @@ PostgreSQL to port 55432. It checks retained jobs across producer restart,
 ID-only queue payloads and a failed-send retry. Local Redis/Docker are unavailable;
 the test is skipped locally, and passing fake-broker tests do not prove queue
 runtime behaviour. CI execution is required before claiming Redis verification.
+Separate real-driver outage regressions cover closed-port and accepted-but-silent
+TCP endpoints with real PostgreSQL due rows, owned endpoint/child cleanup and a
+single five-second total shutdown/normal-exit budget. Their results do not prove
+successful Redis-server delivery; consult the task report for observed execution.
 
 Full practice/session engine, native/web auth clients, social sign-in, device
 leases/transfers, live subscriptions, publication, production deployment, full

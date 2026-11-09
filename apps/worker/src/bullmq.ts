@@ -1,4 +1,4 @@
-import { Queue, Worker } from 'bullmq';
+import { Queue, Worker, QueueKeys, RedisConnection, RedisQueueBackend, type BackendFactory } from 'bullmq';
 import { Redis } from 'ioredis';
 import type { DatabaseClient, MailProvider } from '@reasoningapp/database';
 import { deliverOutbox, type OutboxBroker, type OutboxJob } from './outbox.js';
@@ -101,17 +101,29 @@ export function createBullMqBroker(redisUrl: string, queueName = outboxQueueName
 }
 
 export function createBullMqWorker(deps: { db: DatabaseClient; mailProvider: MailProvider; redisUrl: string; queueName?: string; onError?: () => void }) {
+  const queueName = deps.queueName ?? outboxQueueName;
   let stopping = false;
   const connection = new Redis(deps.redisUrl, { maxRetriesPerRequest: null, connectTimeout: 1000,
-    // BullMQ's blocking duplicate inherits this closure. Let any already queued
-    // bounded reconnect settle to end after shutdown, rather than orphaning its
-    // initialisation promise by force-closing the backend first.
     retryStrategy: attempt => stopping ? null : Math.min(attempt * 50, 250) });
+  // Own both raw clients before wrapping them. The default backend's hidden
+  // duplicate cannot be interrupted through disconnectBlocking until it is ready.
+  const blockingClient = connection.duplicate({ connectionName: `bull:${Buffer.from(queueName).toString('base64')}` });
   connection.on('error', () => { deps.onError?.(); });
-  const worker = new Worker<OutboxJob>(deps.queueName ?? outboxQueueName, async job => {
+  blockingClient.on('error', () => { deps.onError?.(); });
+  const mainAdapter = new RedisConnection(connection, { shared: true, blocking: false });
+  const blockingAdapter = new RedisConnection(blockingClient, { shared: true, blocking: true });
+  // Observe initialization immediately, and join both outcomes during shutdown.
+  // Cancellation errors are expected; neither initialization is left pending.
+  const initializing = Promise.allSettled([mainAdapter.client, blockingAdapter.client]);
+  const backendFactory: BackendFactory<RedisQueueBackend> = (name, options) => {
+    // This slice uses BullMQ's default namespace; no custom prefix is exposed.
+    const keys = new QueueKeys('bull');
+    return new RedisQueueBackend(mainAdapter, name, keys.getKeys(name), key => keys.toKey(name, key), options, blockingAdapter);
+  };
+  const worker = new Worker<OutboxJob>(queueName, async job => {
     if (job.name !== 'deliver' || typeof job.data?.outboxId !== 'string' || Object.keys(job.data).length !== 1) throw new Error('Invalid outbox job');
     await deliverOutbox(deps, job.data.outboxId);
-  }, { connection, concurrency: 4, autorun: false, runRetryDelay: 250 });
+  }, { connection, concurrency: 4, autorun: false, runRetryDelay: 250 }, backendFactory);
   worker.on('error', () => { deps.onError?.(); });
   worker.on('failed', () => { deps.onError?.(); });
   const running = worker.run().catch(() => { deps.onError?.(); });
@@ -119,14 +131,12 @@ export function createBullMqWorker(deps: { db: DatabaseClient; mailProvider: Mai
   return { worker, close(): Promise<void> {
     closing ??= (async () => {
       stopping = true;
-      // Mark closing before releasing readiness. Do not force-close the backend
-      // ahead of its initialisation/end events. Its blocking client now stops
-      // reconnecting, and normal Worker.close owns blocking/backend cleanup.
-      // runRetryDelay bounds a retry sleep entered before closing was observed;
-      // Worker.run and current jobs are still joined, never abandoned.
+      // Mark closing, then cancel BOTH owned raw clients without first awaiting
+      // Redis readiness. Shared wrappers leave raw closure to this owner; normal
+      // Worker.close still owns its backend metadata/current-job cleanup.
       const stopped = worker.close();
       const results = await Promise.allSettled([
-        disconnectRedis(connection), stopped, running,
+        disconnectRedis(connection), disconnectRedis(blockingClient), initializing, stopped, running,
       ]);
       if (results.some(result => result.status === 'rejected')) throw new Error('Local outbox consumer cleanup unavailable');
     })();
