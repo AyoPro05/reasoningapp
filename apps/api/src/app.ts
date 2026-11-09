@@ -52,7 +52,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     if ((origin !== undefined && !origins.has(origin)) ||
         (expoOrigin !== undefined && (typeof expoOrigin !== 'string' || expoOrigin !== config.mobileOrigin))) throw new AccessError(403, 'FORBIDDEN');
     if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && !origin && !expoOrigin) throw new AccessError(403, 'FORBIDDEN');
-    if (request.headers['sec-fetch-site'] === 'cross-site' && request.headers['sec-fetch-mode'] === 'navigate') throw new AccessError(403, 'FORBIDDEN');
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(request.method) && request.headers['sec-fetch-site'] === 'cross-site' && request.headers['sec-fetch-mode'] === 'navigate') throw new AccessError(403, 'FORBIDDEN');
   });
   await app.register(cors, { origin: [...origins].filter(origin => origin.startsWith('http')), credentials: true, methods: ['GET', 'POST', 'OPTIONS'], allowedHeaders: ['Content-Type', 'Idempotency-Key', 'expo-origin'] });
   await app.register(rateLimit, { max: 60, timeWindow: '1 minute' });

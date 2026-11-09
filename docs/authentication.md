@@ -47,7 +47,11 @@ The verification bypass flag is rejected by this slice even in development.
 Better Auth origin and CSRF checks are explicitly enabled, including NODE_ENV=test
 (the library otherwise defaults origin checks off in tests). Fastify additionally
 enforces exact configured origins, requires an Origin or configured Expo-origin
-for unsafe methods, and blocks cross-site browser navigation. `null`, wildcard
+for unsafe methods, and blocks cross-site browser navigation for unsafe methods.
+GET/HEAD/OPTIONS are exempt from the navigation-only rejection, so verification
+and recovery links opened from webmail can reach Better Auth's token and callback
+validation without an Origin header. Explicit untrusted origins remain rejected.
+`null`, wildcard
 origins, arbitrary Expo Go origins and other custom-scheme targets are rejected.
 Credentialed CORS uses explicit HTTP origins only.
 
@@ -134,6 +138,24 @@ verified sign-in repairs welcome without duplicating its outbox row.
 `{ outboxId }` only and use that ID as jobId. Publisher outages leave rows intact.
 Jobs are removed on completion/failure; periodic database polling can republish
 due work. Failure markers and deferred workflow events are not published.
+
+Producer connection/command timeouts are one second, with a two-second publication
+deadline that actively disconnects the underlying client. Producer reconnects are
+disabled; a later database polling pass creates a fresh producer after disposing
+the failed one. Aborting shutdown immediately interrupts pending producer work.
+Both timeout and abort await the actual publication settlement and connection end;
+there is no detached Promise.race operation. Worker shutdown marks the consumer
+closing, makes its inherited Redis retry strategy stop-aware, and interrupts the
+injected client through its real connection lifecycle. During reconnect backoff,
+the next connecting transition is interrupted so readiness waiters receive an
+actual end event. It lets Worker.close own blocking/backend cleanup and joins the
+run before closing DB. Consumer reconnect and BullMQ run-retry delays are bounded
+to 250 ms; the connection timeout remains one second. Backend readiness promises
+are not bypassed with synthetic statuses or forced closed ahead of initialisation.
+Signal listeners/deadline timers are removed.
+This bounds Redis startup-outage waits; it does not promise bounded execution of
+an unrelated stalled database/provider call. A failed publication leaves the due
+row PENDING with its existing attempt count, available for a later polling pass.
 
 A worker atomically claims a due PENDING or expired PROCESSING row using its
 status and attempt generation, increments attempts and sets a 30-second lease in

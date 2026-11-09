@@ -9,11 +9,12 @@ const config = readConfig(process.env);
 const mailProvider = createFakeMailProvider();
 assertLocalMail(config, mailProvider);
 const db = createDatabaseClient(config.databaseUrl);
-const broker = createBullMqBroker(config.redisUrl);
+const stop = new AbortController();
+const broker = createBullMqBroker(config.redisUrl, undefined, stop.signal);
 const consumer = createBullMqWorker({ db, mailProvider, redisUrl: config.redisUrl,
   onError: () => { process.stderr.write('Local outbox consumer unavailable.\n'); } });
-const stop = new AbortController();
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { stop.abort(); });
+const terminate = () => { stop.abort(); };
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, terminate);
 try {
   while (!stop.signal.aborted) {
     try { await publishOutbox(db, broker); }
@@ -21,7 +22,12 @@ try {
     await setTimeout(1000, undefined, { signal: stop.signal }).catch(() => {});
   }
 } finally {
-  await consumer.close();
-  await broker.close();
+  stop.abort();
+  for (const signal of ['SIGINT', 'SIGTERM'] as const) process.removeListener(signal, terminate);
+  const results = await Promise.allSettled([consumer.close(), broker.close()]);
   await db.$disconnect();
+  if (results.some(result => result.status === 'rejected')) {
+    process.stderr.write('Local outbox cleanup unavailable.\n');
+    process.exitCode = 1;
+  }
 }

@@ -160,6 +160,87 @@ test('rejects first-login browser CSRF with missing Origin and cross-site naviga
   expect(await db.user.count({ where: { email } })).toBe(0);
 });
 
+test('cross-site token navigation follows generated verification links while retaining CSRF and callback/token checks', async () => {
+  const owner = await register();
+  await drain(owner.userId);
+  const message = [...mailProvider.deliveries.values()].find(mail => mail.recipient === owner.email && mail.templateKey === 'auth.verifyEmail');
+  expect(Boolean(message?.url)).toBe(true);
+  const link = new URL(message!.url!);
+  const navigationHeaders = { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
+  const navigate = (url: URL) => app.inject({ method: 'GET', url: `${url.pathname}${url.search}`, headers: navigationHeaders });
+
+  // Both missing-Origin and trusted-Origin browser form submissions remain unsafe.
+  for (const headers of [navigationHeaders, { ...navigationHeaders, origin: config.webOrigin }]) {
+    expect((await app.inject({ method: 'POST', url: '/api/auth/sign-out', headers, payload: {} })).statusCode).toBe(403);
+  }
+  expect((await db.user.findUniqueOrThrow({ where: { id: owner.userId } })).emailVerified).toBe(false);
+
+  // Follow the actual library-generated mail link with no Origin, like a webmail click.
+  expect((await navigate(link)).statusCode).toBe(302);
+  expect((await db.user.findUniqueOrThrow({ where: { id: owner.userId } })).emailVerified).toBe(true);
+
+  const hostileCallback = new URL(link);
+  hostileCallback.searchParams.set('callbackURL', 'https://attacker.invalid/verification-complete');
+  expect((await navigate(hostileCallback)).statusCode).toBe(403);
+
+  const invalidToken = new URL(link);
+  invalidToken.searchParams.set('token', 'invalid-signed-verification-token');
+  const rejected = await navigate(invalidToken);
+  expect(rejected.statusCode).toBe(302);
+  const rejectedLocation = new URL(rejected.headers.location!, config.authUrl);
+  expect(rejectedLocation.searchParams.get('error')).toBe('INVALID_TOKEN');
+  expect((await post('sign-in/email', { email: owner.email, password })).statusCode).toBe(200);
+});
+
+test('cross-site token navigation follows generated password-reset links while retaining CSRF and callback/token checks', async () => {
+  const owner = await learner();
+  expect((await post('request-password-reset', { email: owner.email, redirectTo: `${config.webOrigin}/reset-password` })).statusCode).toBe(200);
+  await drain(owner.userId);
+  const message = [...mailProvider.deliveries.values()].find(mail => mail.recipient === owner.email && mail.templateKey === 'auth.resetPassword');
+  expect(Boolean(message?.url)).toBe(true);
+  const link = new URL(message!.url!);
+  const token = link.pathname.split('/').at(-1)!;
+  const navigationHeaders = { 'sec-fetch-site': 'cross-site', 'sec-fetch-mode': 'navigate', 'sec-fetch-dest': 'document' };
+  const navigate = (url: URL) => app.inject({ method: 'GET', url: `${url.pathname}${url.search}`, headers: navigationHeaders });
+  const newPassword = 'Navigation-synthetic-passphrase-593!';
+
+  for (const headers of [
+    { ...navigationHeaders, cookie: owner.cookie },
+    { ...navigationHeaders, cookie: owner.cookie, origin: config.webOrigin },
+  ]) {
+    expect((await app.inject({ method: 'POST', url: '/api/auth/reset-password', headers, payload: { token, newPassword } })).statusCode).toBe(403);
+  }
+
+  const followed = await navigate(link);
+  expect(followed.statusCode).toBe(302);
+  const callback = new URL(followed.headers.location!, config.authUrl);
+  expect(callback.origin).toBe(config.webOrigin);
+  expect(callback.pathname).toBe('/reset-password');
+  expect(callback.searchParams.get('error')).toBeNull();
+  // A boolean assertion prevents a failure from printing the private token/URL.
+  expect(callback.searchParams.get('token') === token).toBe(true);
+  expect(await db.verification.count({ where: { identifier: `reset-password:${token}`, value: owner.userId } })).toBe(1);
+
+  const hostileCallback = new URL(link);
+  hostileCallback.searchParams.set('callbackURL', 'https://attacker.invalid/reset-password');
+  expect((await navigate(hostileCallback)).statusCode).toBe(403);
+
+  const invalidToken = new URL(link);
+  invalidToken.pathname = '/api/auth/reset-password/invalid-reset-token';
+  const rejected = await navigate(invalidToken);
+  expect(rejected.statusCode).toBe(302);
+  const rejectedLocation = new URL(rejected.headers.location!, config.authUrl);
+  expect(rejectedLocation.origin).toBe(config.webOrigin);
+  expect(rejectedLocation.searchParams.get('error')).toBe('INVALID_TOKEN');
+  expect(rejectedLocation.searchParams.has('token')).toBe(false);
+
+  expect((await post('reset-password', { token, newPassword })).statusCode).toBe(200);
+  const consumed = await navigate(link);
+  expect(consumed.statusCode).toBe(302);
+  expect(new URL(consumed.headers.location!, config.authUrl).searchParams.get('error')).toBe('INVALID_TOKEN');
+  expect((await post('sign-in/email', { email: owner.email, password: newPassword })).statusCode).toBe(200);
+});
+
 test('uses configured auth base URL rather than request Host for verification links', async () => {
   const email = address();
   const response = await app.inject({ method: 'POST', url: '/api/auth/sign-up/email', headers: { origin: config.webOrigin, host: 'attacker.invalid', 'x-forwarded-host': 'attacker.invalid' }, payload: { email, password, name: 'Synthetic learner' } });
