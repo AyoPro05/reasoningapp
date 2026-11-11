@@ -2,13 +2,18 @@ import Fastify, { LogController, type FastifyInstance } from 'fastify';
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import type { AppConfig } from '@reasoningapp/config';
-import { ApiErrorDto, LearnerDto, PracticeAccessDto } from '@reasoningapp/contracts';
+import { LearnerDto, PracticeAccessDto } from '@reasoningapp/contracts';
 import type { DatabaseClient, MailProvider, EnqueueAuthMail } from '@reasoningapp/database';
 import { createAuth, type AppAuth } from './modules/auth/auth.js';
 import { AccessError, requireLearner } from './modules/auth/authorization.js';
 import { assertLocalMail, createFakeMailProvider } from './modules/auth/mail.js';
 import { createEntitlementService } from './modules/entitlements/service.js';
 import { authHeaders } from './modules/auth/transport.js';
+import { createApiError, ProductError } from './errors.js';
+import { registerCatalogRoutes } from './modules/catalog/routes.js';
+import { registerSessionRoutes } from './modules/sessions/routes.js';
+import { registerLearningSupportRoutes } from './modules/learning-support/routes.js';
+import type { AiProvider } from './modules/learning-support/providers/ai-provider.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -18,6 +23,7 @@ declare module 'fastify' {
 }
 export type AppDependencies = {
   db: DatabaseClient; config: AppConfig; mailProvider?: MailProvider; enqueueMail?: EnqueueAuthMail;
+  aiProvider?: AiProvider;
   logStream?: { write(message: string): void };
 };
 
@@ -39,11 +45,12 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
   app.decorate('requirePracticeAccess', createEntitlementService(db).requirePracticeAccess);
   const origins = new Set([config.authUrl, ...config.trustedOrigins]);
   app.setErrorHandler((error, request, reply) => {
-    const status = error instanceof AccessError ? error.statusCode :
+    const safeError = error instanceof AccessError || error instanceof ProductError;
+    const status = safeError ? error.statusCode :
       typeof error === 'object' && error !== null && 'statusCode' in error && typeof error.statusCode === 'number' && [400, 413, 429].includes(error.statusCode) ? error.statusCode : 500;
-    const code = error instanceof AccessError ? error.code : status === 429 ? 'RATE_LIMITED' : status < 500 ? 'INVALID_INPUT' : 'INTERNAL_ERROR';
+    const code = safeError ? error.code : status === 429 ? 'RATE_LIMITED' : status < 500 ? 'INVALID_INPUT' : 'INTERNAL_ERROR';
     if (status >= 500) app.log.error({ requestId: request.id }, 'Request failed');
-    reply.code(status).send(ApiErrorDto.parse({ code, messageKey: `errors.${code}`, requestId: request.id }));
+    reply.code(status).send(createApiError(code, request.id));
   });
   app.addHook('onRequest', async request => {
     const origin = request.headers.origin;
@@ -71,7 +78,7 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     if (cookies.length) reply.header('set-cookie', cookies);
     if (response.status >= 500) {
       app.log.error({ requestId: request.id }, 'Authentication request failed');
-      return reply.code(500).send(ApiErrorDto.parse({ code: 'INTERNAL_ERROR', messageKey: 'errors.INTERNAL_ERROR', requestId: request.id }));
+      return reply.code(500).send(createApiError('INTERNAL_ERROR', request.id));
     }
     return reply.code(response.status).send(await response.text());
   } });
@@ -81,6 +88,9 @@ export async function buildApp(deps: AppDependencies): Promise<FastifyInstance> 
     await app.requirePracticeAccess(userId);
     return PracticeAccessDto.parse({ allowed: true });
   });
+  registerCatalogRoutes(app, deps);
+  registerSessionRoutes(app, deps);
+  registerLearningSupportRoutes(app, deps);
   await app.ready();
   return app;
 }

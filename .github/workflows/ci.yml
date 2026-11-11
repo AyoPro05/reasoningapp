@@ -52,13 +52,13 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Generate the pinned Prisma client before source checks
         run: pnpm --filter @reasoningapp/database db:generate
+      - name: Deploy database migrations before database-backed security checks
+        run: pnpm --filter @reasoningapp/database db:deploy
       - run: pnpm test
       - run: pnpm typecheck
       - name: Compile shared packages, API and worker (client applications are later tasks)
         run: pnpm build
       - run: docker compose -f infra/compose.yaml config --quiet
-      - name: Deploy database migrations
-        run: pnpm --filter @reasoningapp/database db:deploy
       - name: Run real database integration checks with explicit test-only content
         env:
           DEVELOPMENT_FIXTURES_ENABLED: 'true'

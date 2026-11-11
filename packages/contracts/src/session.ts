@@ -46,6 +46,20 @@ export const SessionDto = z.strictObject({
 }).refine((session) => new Set(session.items.map((item) => item.sessionItemId)).size === session.items.length, { message: 'Session item identifiers must be unique' });
 export type SessionDto = z.infer<typeof SessionDto>;
 
+export const EmptySessionMutationInput = z.strictObject({});
+export const ActiveSessionDto = z.strictObject({ session: SessionDto.nullable() });
+export type ActiveSessionDto = z.infer<typeof ActiveSessionDto>;
+
+export const SessionResultDto = z.strictObject({
+  sessionId: OpaqueId, total: z.number().int().positive(), correct: z.number().int().nonnegative(),
+  independentAttempts: z.number().int().nonnegative(), independentCorrect: z.number().int().nonnegative(),
+  assistedAttempts: z.number().int().nonnegative(), scoredAt: Timestamp,
+}).refine(result => result.correct <= result.total &&
+  result.independentAttempts + result.assistedAttempts === result.total &&
+  result.independentCorrect <= result.independentAttempts && result.independentCorrect <= result.correct,
+{ message: 'Result counts must agree' });
+export type SessionResultDto = z.infer<typeof SessionResultDto>;
+
 export const ApiErrorDto = z.strictObject({
   code: z.enum(['INVALID_INPUT', 'UNAUTHENTICATED', 'FORBIDDEN', 'NOT_FOUND', 'CONFLICT', 'RATE_LIMITED', 'AI_DISABLED', 'UNAVAILABLE', 'INTERNAL_ERROR']),
   messageKey: z.string().regex(/^errors\.[A-Za-z][A-Za-z0-9.]*$/), requestId: OpaqueId,

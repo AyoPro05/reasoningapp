@@ -63,10 +63,10 @@ Public identifiers are opaque strings. `CategoryId` is the five category literal
 
 **Interfaces:** `buildApp(deps): Promise<FastifyInstance>` supports injected real test DB and fake mail provider. `requireLearner(request): Promise<{userId:string}>` authenticates verified sessions. `requirePracticeAccess(userId): Promise<void>` checks server entitlements. Auth mounts at `/api/auth/*`; product routes use `/v1`. Native uses Better Auth's Expo plugin/SecureStore, web uses HTTP-only cookies and trusted-origin/CSRF protection.
 
-- [ ] Write and run failing real-DB tests for register, verification, sign-in/out, recovery, revoked sessions, unverified access, forged identity headers, blocked origins and cross-user access.
-- [ ] Integrate Better Auth's Prisma adapter and Expo plugin using official integration documentation. Explicitly configure cookie flags, trusted origins, body limits, rate limiting and secret redaction. Use a same-origin web proxy to the API; document LAN native configuration without disabling origin protections.
-- [ ] Persist verification/recovery/welcome outbox messages transactionally where supported; document any library-hook boundary and test retry recovery. Worker claims rows safely, uses stable delivery/dedupe IDs and delivers to Mailpit/fake providers only. Real provider configuration is rejected in this slice.
-- [ ] Test entitlements and development-only verified seeding; outbox retries must not duplicate deliveries. Run `pnpm test:integration -- auth outbox` and `pnpm typecheck`; expect all passing. Commit.
+- [x] Write and run failing real-DB tests for register, verification, sign-in/out, recovery, revoked sessions, unverified access, forged identity headers, blocked origins and cross-user access.
+- [x] Integrate Better Auth's Prisma adapter and Expo plugin using official integration documentation. Explicitly configure cookie flags, trusted origins, body limits, rate limiting and secret redaction. Use a same-origin web proxy to the API; document LAN native configuration without disabling origin protections.
+- [x] Persist verification/recovery/welcome outbox messages transactionally where supported; document any library-hook boundary and test retry recovery. Worker claims rows safely, uses stable delivery/dedupe IDs and delivers to Mailpit/fake providers only. Real provider configuration is rejected in this slice.
+- [x] Test entitlements and development-only verified seeding; outbox retries must not duplicate deliveries. Run `pnpm test:integration -- auth outbox` and `pnpm typecheck`; expect all passing. Commit.
 
 ## Task 4: Catalog, practice engine and private server scoring
 
@@ -74,10 +74,10 @@ Public identifiers are opaque strings. `CategoryId` is the five category literal
 
 **Interfaces:** `GET /v1/categories`; `GET /v1/lessons/:categoryId` releases only the designated worked example; `POST /v1/sessions {categoryId,mode}`; `GET /v1/sessions/:id`; `POST /v1/sessions/:id/items/:itemId/answer {optionKey,selfReportedReason?}`; `POST /v1/sessions/:id/submit`; `GET /v1/sessions/:id/results`. Mutation requests require `Idempotency-Key`. Successful committed responses are immutable; conflicting changes return 409. Missing/foreign owned resources return uniform 404. Invalid payloads return 400, blocked operations 403. Session hydration returns committed selected options without leaking keys for unreleased items.
 
-- [ ] Write failing tests for create/hydrate/commit/submit, invalid option/version, cross-user and mixed-session IDs, identical retries, conflicting idempotency reuse and zero-answer submission. Reject incomplete submission with 409; never fabricate results.
-- [ ] Implement deterministic selection from the eligible bank, immutable version/option ordering snapshots, serializable writes or per-session locks, and persist response/result plus outbox events atomically. Grade private keys server-side. Mock/Daily creation is not exposed to public clients yet; policy tests may create their records through test DB setup.
-- [ ] Exercise concurrent starts, answer-vs-submit races and duplicate submissions against real PostgreSQL; only one valid result may persist. Ensure late responses cannot alter SCORED sessions. Deadline expiration follows server time with no client-controlled reveal flags.
-- [ ] Run `pnpm test:integration -- sessions` and `pnpm test tests/security/session-access.test.ts`; expect all passing, and inspect serialized pre-answer responses for solution/key leakage. Commit.
+- [x] Write failing tests for create/hydrate/commit/submit, invalid option/version, cross-user and mixed-session IDs, identical retries, conflicting idempotency reuse and zero-answer submission. Reject incomplete submission with 409; never fabricate results.
+- [x] Implement deterministic selection from the eligible bank, immutable version/option ordering snapshots, serializable writes or per-session locks, and persist response/result plus outbox events atomically. Grade private keys server-side. Mock/Daily creation is not exposed to public clients yet; policy tests may create their records through test DB setup.
+- [x] Exercise concurrent starts, answer-vs-submit races and duplicate submissions against real PostgreSQL; only one valid result may persist. Ensure late responses cannot alter SCORED sessions. Deadline expiration follows server time with no client-controlled reveal flags.
+- [x] Run `pnpm test:integration -- sessions` and `pnpm test tests/security/session-access.test.ts`; expect all passing, and inspect serialized pre-answer responses for solution/key leakage. Commit.
 
 ## Task 5: Static learning support, progress and review
 
@@ -85,10 +85,10 @@ Public identifiers are opaque strings. `CategoryId` is the five category literal
 
 **Interfaces:** V3's hints/explanation/tutor/related-practice routes and session learning-summary route; `GET /v1/progress`; `POST /v1/question-reports`. `authorizeSupport(actor,session,item,action)` derives permission exclusively from persisted state. `nextReview(outcome,previousInterval,now)` uses 1/3/7 days, repeating the first interval on an independent miss; no missed-day penalty. `getLearningSummary(sessionId,userId)` returns improved/revisit/nextAction text and evidence counts.
 
-- [ ] Write and run failing tests for every action in each mode/state, mock active help blocking, whole-mock release, no pre-answer solution context, unknown item versions, hint-stage exhaustion, request retries and cross-user requests.
-- [ ] Implement authored hints and explanation release in transactions; a committed practice answer permits its feedback, a scored mock permits whole-session review, Daily waits for completion. Pre-answer support loads only hint context. Personal responses use `Cache-Control: private, no-store`; no shared solution cache.
-- [ ] Record pre-answer and post-answer help separately. Preserve independent first-attempt outcomes; expose independent counts and assisted counts, with zero-data accuracy null. Related selection excludes the current/held-out item and gracefully returns unavailable when exhausted. Generate real-data summaries with insufficient-evidence language. Reports never mutate keys or results.
-- [ ] Tutor is authenticated/authorized before returning structured `AI_DISABLED`; static eligible feedback still works. Test AI-off operation, related-bank isolation, help recording and actual-outcome scheduling via `pnpm test` and `pnpm test:integration`; expect all passing. Commit.
+- [x] Write and run failing tests for every action in each mode/state, mock active help blocking, whole-mock release, no pre-answer solution context, unknown item versions, hint-stage exhaustion, request retries and cross-user requests.
+- [x] Implement authored hints and explanation release in transactions; a committed practice answer permits its feedback, a scored mock permits whole-session review, Daily waits for completion. Pre-answer support loads only hint context. Personal responses use `Cache-Control: private, no-store`; no shared solution cache.
+- [x] Record pre-answer and post-answer help separately. Preserve independent first-attempt outcomes; expose independent counts and assisted counts, with zero-data accuracy null. Related selection excludes the current/held-out item and gracefully returns unavailable when exhausted. Generate real-data summaries with insufficient-evidence language. Reports never mutate keys or results.
+- [x] Tutor is authenticated/authorized before returning structured `AI_DISABLED`; static eligible feedback still works. Test AI-off operation, related-bank isolation, help recording and actual-outcome scheduling via `pnpm test` and `pnpm test:integration`; expect all passing. Commit.
 
 ## Task 6: Web learner flow and accessibility
 

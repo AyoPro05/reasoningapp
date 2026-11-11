@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { readConfig } from '@reasoningapp/config';
 import { createDatabaseClient } from '@reasoningapp/database';
+import { ApiErrorDto } from '@reasoningapp/contracts';
 import { buildApp } from '../../apps/api/src/app.js';
 import type { FastifyInstance } from 'fastify';
 
@@ -39,5 +40,16 @@ test('Fastify rate limits remain enabled independently of the auth endpoint rule
   for (let i = 0; i < 60; i++) {
     expect((await app.inject({ url: '/v1/me', remoteAddress: '198.51.100.13' })).statusCode).toBe(401);
   }
-  expect((await app.inject({ url: '/v1/me', remoteAddress: '198.51.100.13', headers: { 'x-forwarded-for': '203.0.113.55' } })).statusCode).toBe(429);
+  const limited = await app.inject({ url: '/v1/me', remoteAddress: '198.51.100.13', headers: { 'x-forwarded-for': '203.0.113.55' } });
+  expect(limited.statusCode).toBe(429);
+  expect(ApiErrorDto.parse(limited.json())).toMatchObject({ code: 'RATE_LIMITED', messageKey: 'errors.rateLimited' });
+});
+
+test('invalid JSON and oversized input retain safe error DTOs instead of framework fallback details', async () => {
+  for (const [payload, statusCode] of [['{', 400], [JSON.stringify({ text: 'x'.repeat(40_000) }), 413]] as const) {
+    const response = await app.inject({ method: 'POST', url: '/v1/sessions', remoteAddress: '198.51.100.14',
+      headers: { origin: config.webOrigin, 'content-type': 'application/json' }, payload });
+    expect(response.statusCode).toBe(statusCode);
+    expect(ApiErrorDto.parse(response.json())).toMatchObject({ code: 'INVALID_INPUT', messageKey: 'errors.invalidInput' });
+  }
 });
